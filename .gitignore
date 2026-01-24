@@ -11,3 +11,8 @@ override.tf.json
 # VSCode
 .vscode/
 
+# SOC Lab logs and runtime files
+logs/
+nohup.out
+*.log
+*.json
