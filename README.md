@@ -1,42 +1,48 @@
-# SIEM Lab Infrastructure
+# AWS Attack-Defense SIEM Lab
 
-Enterprise-grade Security Operations Center (SOC) laboratory demonstrating realistic multi-platform threat detection, log aggregation, and security visualization.
+![SOC Master Console](dashboards/SOC_MASTER_CONSOLE.png)
 
-## Project Overview
+---
 
-**Total Events:** 6,363 security events across 7 detection sources  
-**Platforms:** Linux + Windows endpoint monitoring  
-**Attack Vectors:** Web application, network, authentication, host-based  
-**Visualization:** Splunk dashboards with geographic threat mapping
+## Executive Summary
+
+This project simulates an enterprise-grade Security Operations Center (SOC) environment in AWS, demonstrating end-to-end detection engineering across Linux and Windows systems.
+
+**Core capabilities:** Infrastructure deployment (Terraform), multi-platform threat detection (7 sources), log normalization (JSON), and security visualization (Splunk Dashboard Studio).
+
+**Philosophy:** Architectural clarity and analyst-grade signal quality over exploit demonstration. This lab prioritizes realistic detection workflows, not penetration testing theatrics.
+
+**Result:** 6,363 security events captured across network, application, host, and authentication layers — including real internet threat traffic alongside controlled attacks.
 
 ---
 
 ## Architecture
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    AWS VPC (10.0.1.0/24)                    │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
-│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐ │
-│  │   Attacker   │───▶│ Linux Victim │◀──▶│Windows Victim│ │
-│  │  Ubuntu 20.04│    │ Amazon Linux │    │  Win Srv 2019│ │
-│  │ 10.0.1.203   │    │  10.0.1.84   │    │  10.0.1.103  │ │
-│  └──────────────┘    └──────────────┘    └──────────────┘ │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐   │
+│  │   Attacker   │───▶│ Linux Victim │◀──▶│Windows Victim│   │
+│  │  Ubuntu 20.04│    │ Amazon Linux │    │  Win Srv 2019│   │
+│  │ 10.0.1.203   │    │  10.0.1.84   │    │  10.0.1.103  │   │
+│  └──────────────┘    └──────────────┘    └──────────────┘   │
 │         │                    │                    │         │
-│    Attack Tools          Detection           Detection     │
-│   - Hydra (SSH)          - ModSecurity       - Sysmon      │
-│   - nmap (scans)         - Suricata          - Security Log│
-│   - curl (web)           - Auditd            - PowerShell  │
-│                          - SSH logs                         │
+│    Attack Tools          Detection           Detection      │
+│   - Hydra (SSH)          - ModSecurity       - Sysmon       │
+│   - nmap (scans)         - Suricata          - Security Log │
+│   - curl (web)           - Auditd            - PowerShell   │
+│                          - SSH Logs                         │
 │                                                             │
-│            Centralized Logs (JSON Format)                  │
+│            Centralized Logs (JSON Format)                   │
 │                         │                                   │
 │                         ▼                                   │
-│               ┌─────────────────┐                          │
-│               │  Splunk Free    │                          │
-│               │  (Local Machine)│                          │
-│               │   Dashboards    │                          │
-│               └─────────────────┘                          │
+│               ┌─────────────────┐                           │
+│               │  Splunk Free    │                           │
+│               │  (Local Machine)│                           │
+│               │   Dashboards    │                           │
+│               └─────────────────┘                           │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -44,125 +50,157 @@ Enterprise-grade Security Operations Center (SOC) laboratory demonstrating reali
 
 ## Detection Stack
 
-### Linux Victim (10.0.1.84)
+### Linux Victim (10.0.1.84) — 4 Detection Layers
 
 | Layer | Tool | Events | Coverage |
 |-------|------|--------|----------|
-| Application | ModSecurity WAF | 121 | SQLi, XSS, Path Traversal, Command Injection |
-| Network | Suricata IDS | 2,958 | Port scans, Threat Intel (CINS, Spamhaus), Protocol anomalies |
-| Host | Auditd | 59 | Sudo commands, File access, Privilege escalation |
-| Authentication | SSH Logs | 68 | Failed/successful logins, Brute-force (57 attacks, 10 success) |
+| **Application** | ModSecurity WAF | 121 | SQLi, XSS, Path Traversal, Command Injection |
+| **Network** | Suricata IDS | 2,958 | Port scans, Threat Intel (CINS, Spamhaus), Protocol anomalies |
+| **Host** | Auditd | 59 | Sudo commands, File access, Privilege escalation |
+| **Authentication** | SSH Logs | 68 | 57 failed attempts, 10 successful logins, 1 invalid user |
 
-### Windows Victim (10.0.1.103)
+**Attack highlights:**
+- Web attacks: SQLi (60%), XSS (30%), Path Traversal (7%), Command Injection (3%)
+- Anomaly scores: 8, 13, 18, 23, 28
+- Real internet threat actors: 206.189.9.56, 167.71.72.71, 178.62.244.86
+
+### Windows Victim (10.0.1.103) — 3 Detection Layers
 
 | Layer | Tool | Events | Coverage |
 |-------|------|--------|----------|
-| Endpoint | Sysmon | 1,000 | Process creation, Network connections, Registry modifications |
-| Authentication | Security Event Log | 1,000 | RDP success/failure (4624/4625), Logon types |
-| Command Execution | PowerShell Logs | 157 | Script block logging (Event ID 4104) |
+| **Endpoint** | Sysmon | 1,000 | Process creation, Network connections, Registry modifications |
+| **Authentication** | Security Event Log | 1,000 | RDP success/failure (4624/4625), Logon types |
+| **Command Execution** | PowerShell Logs | 157 | Script block logging (Event ID 4104) |
+
+**Attack highlights:**
+- RDP brute-force: Multiple failed authentication attempts (Event ID 4625)
+- LSASS credential dumping: Sysmon Event ID 10 (process access)
+- Registry persistence: Sysmon Event ID 13 (Run key modification)
+- PowerShell reconnaissance: Get-LocalUser, Get-NetTCPConnection, whoami
 
 ---
 
-## Attack Scenarios Executed
+## Sample Detection Flow
 
-### Web Application Exploitation
-- **121 detections** across SQLi (60%), XSS (30%), Path Traversal (7%), Command Injection (3%)
-- Anomaly scores ranging from 8 to 28
-- Attacks targeted 7+ different application endpoints
+**Scenario: External attacker → Successful compromise → Post-exploitation**
 
-### Network Reconnaissance & Brute-Force
-- **2,958 network events** including real internet threat traffic
-- ET SCAN alerts (SSH, PostgreSQL probing)
-- Real botnet detections: 206.189.9.56, 167.71.72.71, 178.62.244.86
-- CVE-2024-6409 (OpenSSH vulnerability) detected
+1. **Initial Access:** Suricata detects port scanning (ET SCAN alerts) + SSH brute-force attempts visible in auth logs
+2. **Authentication:** 57 failed login attempts (SSH logs from 10.0.1.203)
+3. **Successful Login:** Valid RDP authentication logged (Security Event ID 4624, Logon Type 10)
+4. **Post-Auth Activity:** Process execution recorded (Sysmon Event ID 1: powershell.exe spawned by explorer.exe)
+5. **Credential Access:** LSASS memory access attempt detected (Sysmon Event ID 10: rundll32.exe → lsass.exe)
+6. **Persistence:** Registry Run key modification (Sysmon Event ID 13: HKLM\...\Run)
+7. **Command Execution:** PowerShell reconnaissance captured (Event ID 4104: script blocks with Get-LocalUser, whoami)
 
-### Windows Post-Exploitation
-- **RDP brute-force** from attacker VM (multiple failed 4625 events)
-- **LSASS credential dumping** simulation (Sysmon Event ID 10)
-- **Registry persistence** (Run key modification, Sysmon Event ID 13)
-- **PowerShell reconnaissance** (Get-LocalUser, Get-NetTCPConnection)
-
-### Linux Privilege Escalation
-- **59 sudo commands** logged via Auditd
-- **SSH brute-force** from attacker (38 failed attempts) + real internet botnets
-- Sensitive file access monitoring (/etc/shadow, /etc/passwd)
+**Result:** Full attack chain visible across 4 detection layers — Network → Auth → Endpoint → Command — demonstrating realistic cross-platform detection and correlation capability.
 
 ---
 
-## Key Technical Decisions
+## Prerequisites
 
-**Log Centralization:** All detection sources export to JSON format and centralize on Linux victim before Splunk ingestion
-
-**Multi-Platform Coverage:** Demonstrates understanding of both Linux and Windows security monitoring
-
-**Real Threat Context:** AWS-hosted infrastructure naturally attracts internet threat traffic, providing authentic botnet detections alongside controlled attacks
-
-**Dashboard-First Approach:** Visualization designed for SOC analyst workflows, not just pretty charts
-
-**Attack Realism:** Slow, deliberate attacks generate high-quality detections over volume
+- **AWS Account** (Free Tier eligible; minor data transfer charges may apply)
+- **Terraform** installed locally ([Download](https://www.terraform.io/downloads))
+- **Splunk Free/Enterprise** installed locally ([Download](https://www.splunk.com/en_us/download.html))
+- **SSH client** (Linux/Mac: native | Windows: PuTTY or OpenSSH)
+- **RDP client** (Windows: mstsc | Mac: Microsoft Remote Desktop | Linux: Remmina or xfreerdp)
+- Basic familiarity with AWS VPC, Security Groups, and IP addressing
 
 ---
 
 ## Quick Start
 
 ### 1. Deploy Infrastructure
+
 ```bash
-cd terraform/
+cd terraform-infra/
 terraform init
 terraform apply
 ```
 
+**Expected output:**
+- Attacker VM: Ubuntu 20.04 (10.0.1.203)
+- Linux Victim: Amazon Linux 2 (10.0.1.84)
+- Windows Victim: Windows Server 2019 (10.0.1.103)
+
 ### 2. Configure Detection Pipelines
 
-**Linux (SSH to 10.0.1.84):**
+**Linux Victim (SSH to 10.0.1.84):**
+
 ```bash
-# ModSecurity
+# Pipeline 1: ModSecurity WAF
 cd detection-pipelines/pipeline1-modsecurity
 ./start-pipeline.sh
 ./capture-modsec-logs.sh &
 
-# Auditd
+# Pipeline 2: Suricata IDS
+cd detection-pipelines/pipeline2-suricata
+./capture-suricata-logs.sh &
+
+# Pipeline 3: Auditd (Privileged Operations)
 cd detection-pipelines/pipeline3-auditd
 sudo cp soc-detection.rules /etc/audit/rules.d/
 sudo augenrules --load
 ./parse-auditd-sudo.sh
 
-# SSH Auth
+# Pipeline 4: SSH Authentication
 cd detection-pipelines/pipeline4-ssh-auth
 ./parse-ssh-auth.sh
 ```
 
-**Windows (RDP to 10.0.1.103):**
+**Windows Victim (RDP to 10.0.1.103):**
+
 ```powershell
-# Sysmon + PowerShell Logging
+# Pipeline 5: Sysmon + PowerShell Logging
 cd detection-pipelines/pipeline5-windows-sysmon
 .\install-sysmon.ps1
 .\enable-powershell-logging.ps1
 
-# After attacks, export logs
+# After attack generation, export logs
 .\export-windows-logs.ps1
 ```
 
 ### 3. Generate Attacks
 
-**From Attacker (10.0.1.203):**
-```bash
-# Web attacks
-~/phase1-attacks.sh
-~/phase2-attacks.sh
+**From Attacker VM (10.0.1.203):**
 
-# Network attacks
+```bash
+# Web application attacks
+~/phase1-attacks.sh    # Targeted (SQLi, XSS, traversal, command injection)
+~/phase2-attacks.sh    # Volume generation (70+ variations)
+
+# Network reconnaissance
 nmap -sV 10.0.1.84
-hydra -l admin -P rockyou.txt ssh://10.0.1.84
-hydra -l Administrator -P rockyou.txt rdp://10.0.1.103
+
+# SSH brute-force
+hydra -l admin -P /usr/share/wordlists/rockyou.txt ssh://10.0.1.84
+
+# RDP brute-force
+hydra -l Administrator -P /usr/share/wordlists/rockyou.txt rdp://10.0.1.103
 ```
 
-### 4. Visualize in Splunk
+### 4. Centralize Logs
 
-See `dashboards/` directory for:
-- Dashboard screenshots
-- Splunk JSON definitions
-- Import instructions
+Transfer Windows logs to Linux victim for unified Splunk ingestion:
+
+```powershell
+# On Windows: Compress and serve logs
+Compress-Archive -Path C:\Tools\Logs\*.json -DestinationPath C:\Tools\windows-logs.zip
+cd C:\Tools
+python -m http.server 8000
+```
+
+```bash
+# On Linux: Download and extract
+wget http://10.0.1.103:8000/windows-logs.zip
+unzip windows-logs.zip -d ~/soc-lab/logs/windows/
+```
+
+### 5. Visualize in Splunk
+
+1. Create four indices in Splunk: `web_attacks`, `network_ids`, `endpoint_windows`, `endpoint_linux`
+2. Ingest JSON logs from `~/soc-lab/logs/`
+3. Import dashboard JSON from `dashboards/` (see `dashboards/Readme.md` for full instructions)
+4. View the SOC Master Console for unified threat monitoring
 
 ---
 
@@ -170,65 +208,108 @@ See `dashboards/` directory for:
 
 | Attack Technique | Linux Detection | Windows Detection |
 |-----------------|-----------------|-------------------|
-| Web Exploitation | ModSecurity | - |
-| Network Scanning | Suricata | - |
-| SSH Brute-Force | Suricata + Auth Logs | - |
-| Privileged Commands | Auditd | - |
-| RDP Brute-Force | - | Security Log (4625) |
-| Process Execution | - | Sysmon (ID 1) |
-| Credential Dumping | - | Sysmon (ID 10) |
-| Persistence | - | Sysmon (ID 13) |
-| PowerShell Abuse | - | Event ID 4104 |
+| Web Exploitation | ModSecurity WAF | — |
+| Network Scanning | Suricata IDS | — |
+| SSH Brute-Force | Suricata + Auth Logs | — |
+| Privileged Commands | Auditd (sudo monitoring) | — |
+| RDP Brute-Force | — | Security Event Log (4625) |
+| Process Execution | — | Sysmon (Event ID 1) |
+| Credential Dumping | — | Sysmon (Event ID 10) |
+| Persistence Mechanisms | — | Sysmon (Event ID 13) |
+| PowerShell Abuse | — | PowerShell Logs (Event ID 4104) |
 
 ---
 
-## Project Status
+## Key Technical Decisions
 
-- [x] AWS infrastructure (Terraform)
-- [x] Linux detection stack (4 layers)
-- [x] Windows detection stack (3 layers)
-- [x] Attack generation (web, network, endpoint)
-- [x] Log centralization (JSON format)
-- [x] Splunk dashboards (5 domain + 1 master console)
-- [x] Documentation complete
+**Swap Memory Configuration:** AWS t2.micro instances require swap for Suricata container stability (2GB swap allocated).
+
+**Host Networking for ModSecurity:** OWASP CRS requires `--network host` to properly proxy to backend applications.
+
+**Log Centralization:** All detection sources export to JSON and centralize on the Linux victim before Splunk ingestion.
+
+**JSON Over Syslog:** Structured logging enables easier field extraction, parsing, and dashboard creation in Splunk.
+
+**Attack Realism:** Slow, deliberate attacks with 1–3 second delays generate cleaner detections than rapid-fire exploits.
 
 ---
 
 ## Design Philosophy
 
-**Multi-layer detection over single-tool depth.** Real SOC environments don't rely on one "super tool" — they correlate signals across network, application, host, and authentication layers. This lab demonstrates that architectural understanding.
+**Multi-layer detection over single-tool depth.** Real SOC environments correlate signals across network, application, host, and authentication layers — this lab demonstrates that architectural thinking.
 
 **Realistic over dramatic.** Attacks are slow and deliberate, generating high-quality detections that mirror actual threat behavior rather than exploit demos.
 
 **Dashboard usability over aesthetics.** Visualizations answer analyst questions ("What happened? When? From where?") rather than displaying vanity metrics.
+
+**Signal quality over volume.** 121 web attacks with diverse rule triggers > 10,000 identical SQLi attempts.
 
 ---
 
 ## What This Lab Does NOT Do
 
 This lab intentionally avoids:
-- **Malware detonation** (focuses on attack techniques, not file-based threats)
-- **EDR simulation** (uses native OS logging + open-source tools)
-- **Artificial correlation** (doesn't force cross-platform attack chains)
-- **Over-automation** (manual configuration demonstrates understanding)
+
+- **Malware detonation** — focuses on attack techniques, not file-based threats
+- **Full EDR simulation** — uses native OS logging and open-source tools
+- **Artificial correlation** — doesn't force contrived cross-platform attack chains
+- **Over-automation** — manual configuration demonstrates genuine understanding
+- **Production-grade hardening** — AWS security groups allow broad access for lab purposes only
 
 ---
 
 ## Repository Structure
+
 ```
-siem-lab/
-├── detection-pipelines/         # Setup scripts for each detection layer
-│   ├── pipeline1-modsecurity/
-│   ├── pipeline2-suricata/
-│   ├── pipeline3-auditd/
-│   ├── pipeline4-ssh-auth/
-│   └── pipeline5-windows-sysmon/
-├── terraform/                   # AWS infrastructure as code
-├── dashboards/                  # Splunk dashboard screenshots & JSON
-│   ├── screenshots/
+AWS-atk-def-SIEM-main/
+├── detection-pipelines/              # Setup & parsing scripts per detection layer
+│   ├── pipeline1-modsecurity/        # ModSecurity WAF (start-pipeline.sh, capture-modsec-logs.sh)
+│   ├── pipeline2-suricata/           # Suricata IDS (capture-suricata-logs.sh)
+│   ├── pipeline3-auditd/             # Auditd host monitoring (parse-auditd-sudo.sh, soc-detection.rules)
+│   ├── pipeline4-ssh-auth/           # SSH authentication (parse-ssh-auth.sh)
+│   └── pipeline5-windows-sysmon/     # Windows endpoint (install-sysmon.ps1, enable-powershell-logging.ps1, export-windows-logs.ps1)
+├── terraform-infra/                  # AWS infrastructure as code
+│   ├── ec2.tf                        # VM definitions (Attacker, Linux Victim, Windows Victim)
+│   ├── vpc.tf                        # VPC and subnet configuration
+│   ├── security-groups.tf            # Firewall rules
+│   ├── variables.tf                  # Input variables
+│   ├── outputs.tf                    # Output values (IPs, etc.)
+│   └── provider.tf                   # AWS provider configuration
+├── dashboards/                       # Splunk visualizations & screenshots
+│   ├── SOC_Overview.png              # SOC Master Console screenshot
+│   ├── Web_Application_Security.png  # Web attack dashboard
+│   ├── Network_Threats.png           # Suricata/network dashboard
+│   ├── Windows_Endpoint.png          # Windows detection dashboard
+│   ├── Linux_Endpoint.png            # Linux detection dashboard
+│   ├── SOC MASTER CONSOLE.pdf        # Full master console export
+│   └── Readme.md                     # Dashboard import instructions
 ├── .gitignore
 └── README.md
 ```
+
+---
+
+## Project Status
+
+- [x] AWS infrastructure (Terraform)
+- [x] Linux detection stack (4 layers, 3,206 events)
+- [x] Windows detection stack (3 layers, 2,157 events)
+- [x] Attack generation (web, network, authentication, endpoint)
+- [x] Log centralization (JSON format)
+- [x] Splunk dashboards (5 domain-specific + 1 SOC master console)
+- [x] Documentation complete
+
+---
+
+## Skills Demonstrated
+
+**SIEM Engineering:** Log aggregation, normalization, correlation, and visualization across 7 sources  
+**Windows Event Analysis:** Security Event Log, Sysmon, PowerShell Operational Log  
+**Linux Security:** Auditd, SSH authentication analysis, system hardening  
+**Network Security:** Suricata IDS, threat intelligence feeds (CINS, Spamhaus), traffic analysis  
+**Web Application Security:** ModSecurity WAF, OWASP CRS, attack classification  
+**Cloud Infrastructure:** AWS (VPC, EC2, Security Groups), Terraform (IaC)  
+**Visualization:** Splunk SPL, Dashboard Studio, data-driven security storytelling
 
 ---
 
